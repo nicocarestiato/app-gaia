@@ -12,53 +12,54 @@
   --green:#41d998;--amber:#ffc45d;--red:#ff6d7a;--mono:"Cascadia Mono",Consolas,monospace;
   --font:Inter,Segoe UI,Arial,sans-serif;
 }
-html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:var(--font)}
-body{overflow-x:hidden}
-.app{width:min(1380px,100%);margin:0 auto;padding:18px;min-height:100vh}
-.top{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,.55fr);align-items:start;gap:16px;margin-bottom:14px}
-h1{margin:0;font-size:42px;line-height:1}
-.sub{margin-top:10px;color:var(--muted);line-height:1.45;max-width:760px}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:var(--font);overflow:hidden}
+.app{width:min(1380px,100%);height:100dvh;margin:0 auto;padding:12px;display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px}
+.top{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,.55fr);align-items:start;gap:12px}
+h1{margin:0;font-size:34px;line-height:1}
+.sub{margin-top:6px;color:var(--muted);line-height:1.35;max-width:760px;font-size:14px}
 .status{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .chip{border:1px solid var(--line);background:var(--panel);padding:7px 10px;font:12px var(--mono);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .chip.ok{color:var(--green);border-color:rgba(65,217,152,.45)}
 .chip.busy{color:var(--amber);border-color:rgba(255,196,93,.45)}
 .chip.err{color:var(--red);border-color:rgba(255,109,122,.45)}
-.grid{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(380px,.72fr);gap:14px;align-items:start}
-.panel{border:1px solid var(--line);background:var(--panel);min-width:0;border-radius:8px;overflow:hidden}
+.grid{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(380px,.72fr);gap:12px;align-items:stretch;min-height:0}
+.panel{border:1px solid var(--line);background:var(--panel);min-width:0;min-height:0;border-radius:8px;overflow:hidden}
+.grid>.panel:first-child{display:grid;grid-template-rows:43px minmax(0,1fr) auto auto}
+.grid>.panel:last-child{display:grid;grid-template-rows:43px minmax(0,1fr)}
 .head{height:43px;padding:0 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;background:var(--panel2)}
 .head span{font:12px var(--mono);letter-spacing:.08em;color:var(--muted);text-transform:uppercase;min-width:0}
 .head span:last-child{max-width:55%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right}
-.stage{aspect-ratio:16/9;max-height:590px;background:#030508;display:grid;place-items:center;position:relative;overflow:hidden}
-#view{width:100%;height:100%;object-fit:contain;background:#030508;display:block}
+.stage{min-height:0;background:#030508;display:grid;place-items:center;position:relative;overflow:hidden}
+#view{width:100%;height:100%;background:#030508;display:block}
 #video{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
 .empty{position:absolute;inset:auto 18px;text-align:center;color:var(--muted);font:13px var(--mono);line-height:1.7;padding:22px;border:1px dashed var(--line);background:rgba(16,22,32,.88);border-radius:8px}
 .empty.hide{display:none}
-.bar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:12px;border-top:1px solid var(--line);background:var(--panel2)}
-button{min-height:40px;border:1px solid var(--line);border-radius:6px;background:#182231;color:var(--text);padding:0 12px;font:12px var(--mono);letter-spacing:.04em;text-transform:uppercase;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:9px;border-top:1px solid var(--line);background:var(--panel2)}
+button{min-height:36px;border:1px solid var(--line);border-radius:6px;background:#182231;color:var(--text);padding:0 10px;font:11px var(--mono);letter-spacing:.04em;text-transform:uppercase;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 button:hover:not(:disabled){border-color:var(--cyan);color:var(--cyan)}
 button:disabled{opacity:.42;cursor:not-allowed}
 button.primary{background:rgba(75,213,255,.12);border-color:rgba(75,213,255,.5);color:var(--cyan);flex:1}
 button.on{background:rgba(65,217,152,.12);border-color:rgba(65,217,152,.5);color:var(--green)}
-.controls{display:grid;grid-template-columns:minmax(210px,1fr) minmax(250px,1fr) minmax(170px,.8fr);gap:12px;padding:12px;border-top:1px solid var(--line)}
+.controls{display:grid;grid-template-columns:minmax(210px,1fr) minmax(250px,1fr) minmax(170px,.8fr);gap:10px;padding:9px;border-top:1px solid var(--line)}
 .field{display:grid;grid-template-columns:88px minmax(0,1fr);align-items:center;gap:10px;min-width:0}
 .field label{color:var(--dim);font:11px var(--mono);letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
 input[type=range]{width:100%;accent-color:var(--cyan)}
 .seg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid var(--line);border-radius:6px;overflow:hidden;min-width:0}
-.seg button{border:0;border-right:1px solid var(--line);border-radius:0;min-height:34px;background:transparent;color:var(--muted);padding:0 8px}
+.seg button{border:0;border-right:1px solid var(--line);border-radius:0;min-height:32px;background:transparent;color:var(--muted);padding:0 8px}
 .seg button:last-child{border-right:0}
 .seg button.on{background:rgba(75,213,255,.14);color:var(--cyan)}
 input[type=file]{display:none}
-.out{padding:18px;min-height:0}
-.headline{font-size:34px;line-height:1.08;margin-bottom:14px;overflow-wrap:anywhere}
+.out{padding:14px;min-height:0;overflow:auto}
+.headline{font-size:30px;line-height:1.08;margin-bottom:10px;overflow-wrap:anywhere}
 .headline strong{color:var(--green)}
-.sentence{font-size:17px;line-height:1.5;color:#dce8f7;margin:0 0 14px}
-.note{border-left:2px solid var(--line);padding-left:12px;color:var(--muted);line-height:1.5;margin:14px 0}
-.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(108px,1fr));gap:8px;margin:16px 0}
-.metric{border:1px solid var(--line);background:var(--panel2);padding:11px}
+.sentence{font-size:15px;line-height:1.45;color:#dce8f7;margin:0 0 10px}
+.note{border-left:2px solid var(--line);padding-left:10px;color:var(--muted);line-height:1.4;margin:10px 0;font-size:13px}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:7px;margin:10px 0}
+.metric{border:1px solid var(--line);background:var(--panel2);padding:9px}
 .metric span{display:block;color:var(--dim);font:10px var(--mono);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px}
 .metric strong{font:16px var(--mono);overflow-wrap:anywhere}
-.objects{display:grid;gap:8px;margin-top:12px}
-.classes{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
+.objects{display:grid;gap:7px;margin-top:10px}
+.classes{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 10px}
 .tag{border:1px solid rgba(75,213,255,.35);background:rgba(75,213,255,.08);color:#d9f6ff;padding:7px 9px;font:12px var(--mono);border-radius:6px;max-width:100%;overflow-wrap:anywhere}
 .tag strong{color:var(--cyan)}
 .tag.scene{border-color:rgba(255,196,93,.35);background:rgba(255,196,93,.08);color:#fff0c5}
@@ -70,14 +71,16 @@ input[type=file]{display:none}
 .score{font:14px var(--mono);color:var(--green);white-space:nowrap}
 .warn{color:var(--amber)}
 @media(max-width:1080px){
+  html,body{overflow:auto}
+  .app{height:auto;min-height:100dvh}
   .top{grid-template-columns:1fr}
   .status{grid-template-columns:repeat(3,minmax(0,1fr))}
   .grid{grid-template-columns:1fr}
-  .stage{max-height:none}
+  .stage{min-height:360px}
 }
 @media(max-width:760px){
   .app{padding:10px}
-  h1{font-size:34px}
+  h1{font-size:30px}
   .sub{font-size:14px}
   .status{grid-template-columns:repeat(2,minmax(0,1fr))}
   .bar{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -87,7 +90,7 @@ input[type=file]{display:none}
 }
 @media(max-width:460px){
   .status{grid-template-columns:1fr}
-  .stage{aspect-ratio:4/3}
+  .stage{min-height:300px}
   .metrics{grid-template-columns:1fr}
   .obj{grid-template-columns:1fr}
   .score{justify-self:start}
@@ -119,7 +122,7 @@ input[type=file]{display:none}
         <video id="video" autoplay playsinline muted></video>
         <div class="empty" id="empty">Avvia la webcam o carica una foto.<br>Il rilevamento parte automaticamente.</div>
       </div>
-      <input type="file" id="fileInput" accept="image/*">
+      <input type="file" id="fileInput" accept="image/*,.avif,.heic,.heif">
       <div class="bar">
         <button id="cameraBtn" type="button">Webcam</button>
         <button id="fileBtn" type="button">Foto</button>
@@ -281,6 +284,9 @@ let objectHints = new Map();
 let previousDetections = [];
 let lastAnalysisWidth = 1;
 let lastAnalysisHeight = 1;
+let viewCssWidth = 1280;
+let viewCssHeight = 720;
+let displayRect = { x:0, y:0, w:1280, h:720 };
 let frames = 0;
 let skips = 0;
 let lastLatency = 0;
@@ -335,6 +341,10 @@ function bind(){
       detectOnce();
     }
   };
+  window.addEventListener("resize",() => {
+    if(source) drawFrame();
+    else drawBlank();
+  });
 }
 
 async function loadModel(){
@@ -472,22 +482,46 @@ function stopCamera(){
   if(!source) els.empty.classList.remove("hide");
 }
 
-function loadImage(file){
+async function loadImage(file){
   stopCamera();
-  const img = new Image();
-  img.onload = () => {
-    source = img;
+  clearDetectionBuffers();
+  try{
+    source = await createBitmapSource(file);
     sourceType = "image";
     els.empty.classList.add("hide");
     els.sourceLabel.textContent = "foto";
-    resizeView(img.naturalWidth,img.naturalHeight);
+    resizeView();
     drawFrame();
     detectOnce();
     runPreciseScan(true);
     scanBarcodes(true);
     classifyOnce(true);
-  };
-  img.src = URL.createObjectURL(file);
+  }catch(error){
+    showMessage("Formato non supportato",`Il browser non riesce ad aprire questa immagine (${file.type || "tipo sconosciuto"}). Prova JPG, PNG, WEBP o GIF.`);
+  }
+}
+
+async function createBitmapSource(file){
+  if(window.createImageBitmap){
+    try{
+      return await createImageBitmap(file,{ imageOrientation:"from-image" });
+    }catch(error){
+      // Fallback sotto: alcuni formati non supportano createImageBitmap.
+    }
+  }
+  return await new Promise((resolve,reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Immagine non caricabile"));
+    };
+    img.src = url;
+  });
 }
 
 function startLoops(){
@@ -521,21 +555,61 @@ function drawLoop(){
 
 function drawFrame(){
   if(!source) return;
-  const w = sourceType === "camera" ? els.video.videoWidth : source.naturalWidth;
-  const h = sourceType === "camera" ? els.video.videoHeight : source.naturalHeight;
+  const { w,h } = sourceSize();
   if(!w || !h) return;
-  resizeView(w,h);
-  const ctx = els.view.getContext("2d");
-  ctx.clearRect(0,0,els.view.width,els.view.height);
-  ctx.drawImage(source,0,0,els.view.width,els.view.height);
+  const { ctx,cw,ch } = setupViewCanvas();
+  ctx.clearRect(0,0,cw,ch);
+  ctx.fillStyle = "#030508";
+  ctx.fillRect(0,0,cw,ch);
+  displayRect = fitRect(w,h,cw,ch);
+  ctx.drawImage(source,displayRect.x,displayRect.y,displayRect.w,displayRect.h);
   drawBoxes(ctx);
 }
 
-function resizeView(w,h){
-  if(els.view.width !== w || els.view.height !== h){
-    els.view.width = w;
-    els.view.height = h;
+function resizeView(){
+  setupViewCanvas();
+}
+
+function setupViewCanvas(){
+  const stage = els.view.parentElement;
+  const rect = stage.getBoundingClientRect();
+  const cw = Math.max(320,Math.round(rect.width || 1280));
+  const ch = Math.max(240,Math.round(rect.height || 720));
+  const dpr = Math.min(window.devicePixelRatio || 1,2);
+  const pw = Math.round(cw * dpr);
+  const ph = Math.round(ch * dpr);
+  if(els.view.width !== pw || els.view.height !== ph){
+    els.view.width = pw;
+    els.view.height = ph;
   }
+  viewCssWidth = cw;
+  viewCssHeight = ch;
+  const ctx = els.view.getContext("2d");
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return { ctx,cw,ch,dpr };
+}
+
+function fitRect(srcW,srcH,dstW,dstH){
+  const scale = Math.min(dstW / srcW,dstH / srcH);
+  const w = Math.max(1,srcW * scale);
+  const h = Math.max(1,srcH * scale);
+  return {
+    x:(dstW - w) / 2,
+    y:(dstH - h) / 2,
+    w,
+    h
+  };
+}
+
+function sourceSize(){
+  if(sourceType === "camera"){
+    return { w:els.video.videoWidth || 0, h:els.video.videoHeight || 0 };
+  }
+  if(!source) return { w:0, h:0 };
+  return {
+    w:source.naturalWidth || source.videoWidth || source.width || 0,
+    h:source.naturalHeight || source.videoHeight || source.height || 0
+  };
 }
 
 async function detectOnce(){
@@ -544,8 +618,7 @@ async function detectOnce(){
     updateMetrics();
     return;
   }
-  const w = sourceType === "camera" ? els.video.videoWidth : source.naturalWidth;
-  const h = sourceType === "camera" ? els.video.videoHeight : source.naturalHeight;
+  const { w,h } = sourceSize();
   if(!w || !h) return;
   detecting = true;
   prepareAnalysisFrame();
@@ -567,8 +640,7 @@ async function detectOnce(){
 }
 
 function prepareAnalysisFrame(maxSize=analysisSize){
-  const w = sourceType === "camera" ? els.video.videoWidth : source.naturalWidth;
-  const h = sourceType === "camera" ? els.video.videoHeight : source.naturalHeight;
+  const { w,h } = sourceSize();
   if(!w || !h) return false;
   const scale = Math.min(1,maxSize / Math.max(w,h));
   lastAnalysisWidth = Math.max(1,Math.round(w * scale));
@@ -587,8 +659,7 @@ function shouldScanZones(force=false){
 
 async function scanZones(force=false){
   if(!model || !source || zoneScanning || !shouldScanZones(force)) return;
-  const sourceW = sourceType === "camera" ? els.video.videoWidth : source.naturalWidth;
-  const sourceH = sourceType === "camera" ? els.video.videoHeight : source.naturalHeight;
+  const { w:sourceW,h:sourceH } = sourceSize();
   if(!sourceW || !sourceH) return;
   zoneScanning = true;
   lastZoneAt = performance.now();
@@ -704,8 +775,7 @@ async function classifyOnce(force=false){
   if(!classifier || !source || classifying) return;
   const now = performance.now();
   if(!force && now - lastClassifyAt < CLASSIFY_EVERY_MS) return;
-  const w = sourceType === "camera" ? els.video.videoWidth : source.naturalWidth;
-  const h = sourceType === "camera" ? els.video.videoHeight : source.naturalHeight;
+  const { w,h } = sourceSize();
   if(!w || !h) return;
   classifying = true;
   lastClassifyAt = now;
@@ -741,8 +811,7 @@ async function classifyOnce(force=false){
 }
 
 async function classifyDetectedCrops(){
-  const sourceW = sourceType === "camera" ? els.video.videoWidth : source.naturalWidth;
-  const sourceH = sourceType === "camera" ? els.video.videoHeight : source.naturalHeight;
+  const { w:sourceW,h:sourceH } = sourceSize();
   if(!sourceW || !sourceH || !detections.length) return;
   const nextHints = new Map();
   const candidates = detections
@@ -790,8 +859,7 @@ function toSourceBox(item,sourceW,sourceH,margin=0){
 
 function analyzeScene(){
   if(!source) return [];
-  const w = sourceType === "camera" ? els.video.videoWidth : source.naturalWidth;
-  const h = sourceType === "camera" ? els.video.videoHeight : source.naturalHeight;
+  const { w,h } = sourceSize();
   if(!w || !h) return [];
   sceneCanvas.width = 32;
   sceneCanvas.height = 32;
@@ -873,8 +941,7 @@ function convertMediaPipeFaces(result){
 function barcodeToDetection(code){
   const box = code.boundingBox;
   if(!box) return null;
-  const sourceW = sourceType === "camera" ? els.video.videoWidth : source.naturalWidth;
-  const sourceH = sourceType === "camera" ? els.video.videoHeight : source.naturalHeight;
+  const { w:sourceW,h:sourceH } = sourceSize();
   if(!sourceW || !sourceH) return null;
   const label = code.format === "qr_code" ? "qr code" : "barcode";
   return {
@@ -901,6 +968,7 @@ function updateFinalDetections(){
   ];
   detections = stabilizeDetections(merged).slice(0,Number(els.maxObjects.value));
   previousDetections = detections.map(item => ({ ...item, box:{ ...item.box } }));
+  if(source) drawFrame();
 }
 
 function stabilizeDetections(items){
@@ -986,12 +1054,13 @@ function normalizeLabel(label){
 }
 
 function drawBoxes(ctx){
-  const sx = els.view.width / lastAnalysisWidth;
-  const sy = els.view.height / lastAnalysisHeight;
+  if(!displayRect || !displayRect.w || !displayRect.h) return;
+  const sx = displayRect.w / lastAnalysisWidth;
+  const sy = displayRect.h / lastAnalysisHeight;
   detections.forEach((item,index) => {
     const color = index % 3 === 0 ? "#41d998" : index % 3 === 1 ? "#4bd5ff" : "#ffc45d";
-    const x = item.box.x * sx;
-    const y = item.box.y * sy;
+    const x = displayRect.x + item.box.x * sx;
+    const y = displayRect.y + item.box.y * sy;
     const w = item.box.w * sx;
     const h = item.box.h * sy;
     drawCornerBox(ctx,x,y,w,h,color);
@@ -1023,7 +1092,7 @@ function drawLabel(ctx,x,y,text,color){
   ctx.font = "18px Cascadia Mono, Consolas, monospace";
   const pad = 8;
   const tw = ctx.measureText(text).width;
-  const lx = Math.max(4,Math.min(x,els.view.width - tw - pad * 2 - 4));
+  const lx = Math.max(4,Math.min(x,viewCssWidth - tw - pad * 2 - 4));
   const ly = Math.max(24,y - 8);
   ctx.fillStyle = "rgba(3,5,8,.82)";
   ctx.fillRect(lx,ly - 24,tw + pad * 2,28);
@@ -1199,17 +1268,25 @@ function showMessage(title,msg){
 }
 
 function drawBlank(){
-  els.view.width = 1280;
-  els.view.height = 720;
-  const ctx = els.view.getContext("2d");
+  const { ctx,cw,ch } = setupViewCanvas();
   ctx.fillStyle = "#030508";
-  ctx.fillRect(0,0,els.view.width,els.view.height);
+  ctx.fillRect(0,0,cw,ch);
+  displayRect = { x:0, y:0, w:cw, h:ch };
 }
 
 function resetAll(){
   stopCamera();
   source = null;
   sourceType = "none";
+  clearDetectionBuffers();
+  els.empty.classList.remove("hide");
+  els.sourceLabel.textContent = "nessuna sorgente";
+  showMessage("Nessun risultato","Aspetto una sorgente video o foto.");
+  updateMetrics();
+  drawBlank();
+}
+
+function clearDetectionBuffers(){
   detections = [];
   cocoDetections = [];
   zoneDetections = [];
@@ -1230,11 +1307,6 @@ function resetAll(){
   lastPreciseAt = 0;
   lastZoneAt = 0;
   lastBarcodeAt = 0;
-  els.empty.classList.remove("hide");
-  els.sourceLabel.textContent = "nessuna sorgente";
-  showMessage("Nessun risultato","Aspetto una sorgente video o foto.");
-  updateMetrics();
-  drawBlank();
 }
 
 function cameraHelp(error){
