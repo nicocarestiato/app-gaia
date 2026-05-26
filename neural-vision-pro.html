@@ -1,0 +1,777 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NeuralVision Live</title>
+<style>
+*{box-sizing:border-box}
+:root{
+  --bg:#070a0f;--panel:#101620;--panel2:#151d29;--line:#2a3548;
+  --text:#edf4ff;--muted:#8f9db1;--dim:#59677b;--cyan:#4bd5ff;
+  --green:#41d998;--amber:#ffc45d;--red:#ff6d7a;--mono:"Cascadia Mono",Consolas,monospace;
+  --font:Inter,Segoe UI,Arial,sans-serif;
+}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:var(--font)}
+body{overflow-x:hidden}
+.app{width:min(1360px,100%);margin:0 auto;padding:18px}
+.top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px}
+h1{margin:0;font-size:clamp(28px,4vw,52px);line-height:.95;letter-spacing:-.04em}
+.sub{margin-top:10px;color:var(--muted);line-height:1.5;max-width:760px}
+.status{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.chip{border:1px solid var(--line);background:var(--panel);padding:7px 10px;font:12px var(--mono);color:var(--muted)}
+.chip.ok{color:var(--green);border-color:rgba(65,217,152,.45)}
+.chip.busy{color:var(--amber);border-color:rgba(255,196,93,.45)}
+.chip.err{color:var(--red);border-color:rgba(255,109,122,.45)}
+.grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(360px,.85fr);gap:14px}
+@media(max-width:980px){.grid{grid-template-columns:1fr}.status{justify-content:flex-start}.top{display:block}}
+.panel{border:1px solid var(--line);background:var(--panel);min-width:0}
+.head{height:43px;padding:0 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;background:var(--panel2)}
+.head span{font:12px var(--mono);letter-spacing:.12em;color:var(--muted);text-transform:uppercase}
+.stage{height:min(58vw,590px);min-height:390px;background:#030508;display:grid;place-items:center;position:relative;overflow:hidden}
+#view{width:100%;height:100%;object-fit:contain;background:#030508;display:block}
+#video{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
+.empty{position:absolute;text-align:center;color:var(--muted);font:13px var(--mono);line-height:1.7;padding:24px;border:1px dashed var(--line);background:rgba(16,22,32,.85)}
+.empty.hide{display:none}
+.bar{display:flex;gap:8px;flex-wrap:wrap;padding:12px;border-top:1px solid var(--line);background:var(--panel2)}
+button{min-height:40px;border:1px solid var(--line);background:#182231;color:var(--text);padding:0 14px;font:12px var(--mono);letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
+button:hover:not(:disabled){border-color:var(--cyan);color:var(--cyan)}
+button:disabled{opacity:.42;cursor:not-allowed}
+button.primary{background:rgba(75,213,255,.12);border-color:rgba(75,213,255,.5);color:var(--cyan);flex:1}
+button.on{background:rgba(65,217,152,.12);border-color:rgba(65,217,152,.5);color:var(--green)}
+.controls{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;padding:12px;border-top:1px solid var(--line)}
+@media(max-width:700px){.controls{grid-template-columns:1fr}}
+.field{display:flex;align-items:center;gap:10px;min-width:0}
+.field label{width:94px;color:var(--dim);font:11px var(--mono);letter-spacing:.08em;text-transform:uppercase}
+input[type=range]{width:100%;accent-color:var(--cyan)}
+.seg{display:flex;border:1px solid var(--line)}
+.seg button{border:0;border-right:1px solid var(--line);min-height:34px;background:transparent;color:var(--muted);padding:0 10px}
+.seg button:last-child{border-right:0}
+.seg button.on{background:rgba(75,213,255,.14);color:var(--cyan)}
+input[type=file]{display:none}
+.out{padding:20px;min-height:590px}
+.headline{font-size:clamp(24px,3.2vw,44px);line-height:1.05;letter-spacing:-.04em;margin-bottom:14px}
+.headline strong{color:var(--green)}
+.sentence{font-size:18px;line-height:1.55;color:#dce8f7;margin:0 0 14px}
+.note{border-left:2px solid var(--line);padding-left:12px;color:var(--muted);line-height:1.5;margin:14px 0}
+.metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:16px 0}
+@media(max-width:700px){.metrics{grid-template-columns:repeat(2,1fr)}}
+.metric{border:1px solid var(--line);background:var(--panel2);padding:11px}
+.metric span{display:block;color:var(--dim);font:10px var(--mono);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px}
+.metric strong{font:17px var(--mono)}
+.objects{display:grid;gap:8px;margin-top:12px}
+.classes{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
+.tag{border:1px solid rgba(75,213,255,.35);background:rgba(75,213,255,.08);color:#d9f6ff;padding:7px 9px;font:12px var(--mono)}
+.tag strong{color:var(--cyan)}
+.obj{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;border:1px solid var(--line);background:var(--panel2);padding:10px 12px}
+.obj b{font-size:18px}
+.obj small{display:block;color:var(--muted);font:12px var(--mono);margin-top:4px}
+.score{font:14px var(--mono);color:var(--green)}
+.warn{color:var(--amber)}
+</style>
+</head>
+<body>
+<main class="app">
+  <div class="top">
+    <div>
+      <h1>NeuralVision Live</h1>
+      <div class="sub">Webcam fluida: box ogni 500 ms, dettaglio piu alto e un secondo modello che legge anche il contenuto generale del frame.</div>
+    </div>
+    <div class="status">
+      <div class="chip" id="modelChip">modello: caricamento</div>
+      <div class="chip" id="detailChip">dettagli: caricamento</div>
+      <div class="chip" id="camChip">camera: ferma</div>
+      <div class="chip" id="tickChip">tick: 500 ms</div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <section class="panel">
+      <div class="head"><span>Input</span><span id="sourceLabel">nessuna sorgente</span></div>
+      <div class="stage">
+        <canvas id="view"></canvas>
+        <video id="video" autoplay playsinline muted></video>
+        <div class="empty" id="empty">Avvia la webcam o carica una foto.<br>Il rilevamento parte automaticamente.</div>
+      </div>
+      <input type="file" id="fileInput" accept="image/*">
+      <div class="bar">
+        <button id="cameraBtn" type="button">Webcam</button>
+        <button id="fileBtn" type="button">Foto</button>
+        <button id="liveBtn" type="button" class="on">Live on</button>
+        <button id="resetBtn" type="button">Reset</button>
+      </div>
+      <div class="controls">
+        <div class="field">
+          <label>Soglia <span id="thresholdValue">40%</span></label>
+          <input id="threshold" type="range" min="20" max="85" value="40">
+        </div>
+        <div class="field">
+          <label>Qualita</label>
+          <div class="seg" id="qualitySeg">
+            <button type="button" data-size="320">Veloce</button>
+            <button type="button" data-size="416" class="on">Media</button>
+            <button type="button" data-size="512">Precisa</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>Max obj</label>
+          <input id="maxObjects" type="range" min="1" max="10" value="6">
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="head"><span>Risultato</span><span id="qualityLabel">COCO-SSD</span></div>
+      <div class="out">
+        <div class="headline" id="headline">Nessun risultato</div>
+        <p class="sentence" id="sentence">Aspetto una sorgente video o foto.</p>
+        <div class="note" id="note">Se un frame richiede piu di 500 ms, il sistema non accoda ritardo: mantiene il video fluido e aggiorna appena il modello termina.</div>
+        <div class="metrics">
+          <div class="metric"><span>Inferenza</span><strong id="latency">-</strong></div>
+          <div class="metric"><span>Oggetti</span><strong id="count">0</strong></div>
+          <div class="metric"><span>Frame</span><strong id="frames">0</strong></div>
+          <div class="metric"><span>Saltati</span><strong id="skips">0</strong></div>
+          <div class="metric"><span>Dettagli</span><strong id="classLatency">-</strong></div>
+        </div>
+        <div class="classes" id="classes"></div>
+        <div class="objects" id="objects"></div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.1/dist/mobilenet.min.js"></script>
+<script>
+const TICK_MS = 500;
+const CLASSIFY_EVERY_MS = 1500;
+const IT = {
+  person:["persona","persone"],bicycle:["bicicletta","biciclette"],car:["auto","auto"],motorcycle:["moto","moto"],
+  airplane:["aereo","aerei"],bus:["bus","bus"],train:["treno","treni"],truck:["camion","camion"],boat:["barca","barche"],
+  "traffic light":["semaforo","semafori"],"stop sign":["stop","stop"],bench:["panchina","panchine"],bird:["uccello","uccelli"],
+  cat:["gatto","gatti"],dog:["cane","cani"],backpack:["zaino","zaini"],umbrella:["ombrello","ombrelli"],handbag:["borsa","borse"],
+  bottle:["bottiglia","bottiglie"],cup:["tazza","tazze"],chair:["sedia","sedie"],couch:["divano","divani"],
+  "potted plant":["pianta","piante"],bed:["letto","letti"],"dining table":["tavolo","tavoli"],tv:["televisore","televisori"],
+  laptop:["portatile","portatili"],mouse:["mouse","mouse"],remote:["telecomando","telecomandi"],keyboard:["tastiera","tastiere"],
+  "cell phone":["telefono","telefoni"],book:["libro","libri"],clock:["orologio","orologi"]
+};
+const CLASS_HINTS = {
+  sunglasses:"occhiali da sole", "sunglass":"occhiali da sole", "eyeglasses":"occhiali",
+  "computer keyboard":"tastiera", keyboard:"tastiera", laptop:"portatile", notebook:"portatile",
+  monitor:"monitor", screen:"schermo", "desktop computer":"computer", mouse:"mouse",
+  "cellular telephone":"telefono", "cell phone":"telefono", "hand-held computer":"dispositivo",
+  microphone:"microfono", "loudspeaker":"cassa audio", headset:"cuffie", "crash helmet":"casco",
+  "water bottle":"bottiglia", bottle:"bottiglia", mug:"tazza", cup:"tazza", backpack:"zaino",
+  sweatshirt:"felpa", jersey:"maglia", suit:"giacca", "lab coat":"camice", book:"libro",
+  "binder":"raccoglitore", "packet":"pacchetto", "remote control":"telecomando",
+  "web site":"schermo con pagina", printer:"stampante", "digital clock":"orologio digitale"
+};
+
+const els = {
+  modelChip: document.getElementById("modelChip"),
+  detailChip: document.getElementById("detailChip"),
+  camChip: document.getElementById("camChip"),
+  tickChip: document.getElementById("tickChip"),
+  sourceLabel: document.getElementById("sourceLabel"),
+  view: document.getElementById("view"),
+  video: document.getElementById("video"),
+  empty: document.getElementById("empty"),
+  cameraBtn: document.getElementById("cameraBtn"),
+  fileBtn: document.getElementById("fileBtn"),
+  liveBtn: document.getElementById("liveBtn"),
+  resetBtn: document.getElementById("resetBtn"),
+  fileInput: document.getElementById("fileInput"),
+  threshold: document.getElementById("threshold"),
+  thresholdValue: document.getElementById("thresholdValue"),
+  qualitySeg: document.getElementById("qualitySeg"),
+  maxObjects: document.getElementById("maxObjects"),
+  qualityLabel: document.getElementById("qualityLabel"),
+  headline: document.getElementById("headline"),
+  sentence: document.getElementById("sentence"),
+  note: document.getElementById("note"),
+  latency: document.getElementById("latency"),
+  count: document.getElementById("count"),
+  frames: document.getElementById("frames"),
+  skips: document.getElementById("skips"),
+  classLatency: document.getElementById("classLatency"),
+  classes: document.getElementById("classes"),
+  objects: document.getElementById("objects")
+};
+
+let model = null;
+let classifier = null;
+let stream = null;
+let raf = 0;
+let tickTimer = 0;
+let detecting = false;
+let live = true;
+let source = null;
+let sourceType = "none";
+let analysisSize = 416;
+let analysisCanvas = document.createElement("canvas");
+let analysisCtx = analysisCanvas.getContext("2d",{ willReadFrequently:false });
+let classifyCanvas = document.createElement("canvas");
+let classifyCtx = classifyCanvas.getContext("2d",{ willReadFrequently:false });
+let detections = [];
+let classHints = [];
+let previousDetections = [];
+let lastAnalysisWidth = 1;
+let lastAnalysisHeight = 1;
+let frames = 0;
+let skips = 0;
+let lastLatency = 0;
+let lastClassLatency = 0;
+let lastClassifyAt = 0;
+let classifying = false;
+window.__NV_STATE__ = {};
+
+boot();
+
+async function boot(){
+  bind();
+  drawBlank();
+  await loadModel();
+}
+
+function bind(){
+  els.cameraBtn.onclick = toggleCamera;
+  els.fileBtn.onclick = () => els.fileInput.click();
+  els.fileInput.onchange = event => {
+    const file = event.target.files[0];
+    if(file) loadImage(file);
+  };
+  els.liveBtn.onclick = () => {
+    live = !live;
+    els.liveBtn.classList.toggle("on",live);
+    els.liveBtn.textContent = live ? "Live on" : "Live pausa";
+  };
+  els.resetBtn.onclick = resetAll;
+  els.threshold.oninput = () => {
+    els.thresholdValue.textContent = `${els.threshold.value}%`;
+    if(source) detectOnce();
+  };
+  els.qualitySeg.onclick = event => {
+    const btn = event.target.closest("button[data-size]");
+    if(!btn) return;
+    analysisSize = Number(btn.dataset.size);
+    [...els.qualitySeg.querySelectorAll("button")].forEach(item => item.classList.toggle("on",item === btn));
+    if(source) detectOnce();
+  };
+}
+
+async function loadModel(){
+  try{
+    els.modelChip.textContent = "detector: caricamento";
+    els.modelChip.className = "chip busy";
+    if(window.tf){
+      await tf.setBackend("webgl").catch(() => tf.setBackend("wasm")).catch(() => tf.setBackend("cpu"));
+      await tf.ready();
+    }
+    model = await loadDetector();
+    els.modelChip.textContent = "detector: pronto";
+    els.modelChip.className = "chip ok";
+    if(source) detectOnce();
+    loadClassifier();
+  }catch(error){
+    els.modelChip.textContent = "modello: errore";
+    els.modelChip.className = "chip err";
+    showMessage("Modello non caricato",error.message);
+  }
+}
+
+async function loadDetector(){
+  const bases = ["mobilenet_v2","lite_mobilenet_v2"];
+  let lastError = null;
+  for(const base of bases){
+    try{
+      const detector = await cocoSsd.load({ base });
+      els.qualityLabel.textContent = base === "mobilenet_v2" ? "COCO preciso" : "COCO veloce";
+      return detector;
+    }catch(error){
+      lastError = error;
+    }
+  }
+  throw lastError || new Error("Detector non disponibile");
+}
+
+async function loadClassifier(){
+  if(!window.mobilenet){
+    els.detailChip.textContent = "dettagli: off";
+    els.detailChip.className = "chip";
+    return;
+  }
+  try{
+    els.detailChip.textContent = "dettagli: caricamento";
+    els.detailChip.className = "chip busy";
+    classifier = await mobilenet.load({ version:2, alpha:1.0 });
+    els.detailChip.textContent = "dettagli: pronti";
+    els.detailChip.className = "chip ok";
+    if(source) classifyOnce(true);
+  }catch(error){
+    classifier = null;
+    els.detailChip.textContent = "dettagli: errore";
+    els.detailChip.className = "chip err";
+  }
+}
+
+async function toggleCamera(){
+  if(stream){
+    stopCamera();
+    return;
+  }
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({ video:{ width:{ideal:1280}, height:{ideal:720} }, audio:false });
+    els.video.srcObject = stream;
+    await els.video.play();
+    source = els.video;
+    sourceType = "camera";
+    els.empty.classList.add("hide");
+    els.cameraBtn.textContent = "Stop";
+    els.cameraBtn.classList.add("on");
+    els.camChip.textContent = "camera: attiva";
+    els.camChip.className = "chip ok";
+    els.sourceLabel.textContent = "webcam";
+    startLoops();
+  }catch(error){
+    els.camChip.textContent = "camera: bloccata";
+    els.camChip.className = "chip err";
+    showMessage("Camera non disponibile",cameraHelp(error));
+  }
+}
+
+function stopCamera(){
+  stopLoops();
+  if(stream){
+    stream.getTracks().forEach(track => track.stop());
+    stream = null;
+  }
+  els.video.srcObject = null;
+  if(sourceType === "camera") source = null;
+  els.cameraBtn.textContent = "Webcam";
+  els.cameraBtn.classList.remove("on");
+  els.camChip.textContent = "camera: ferma";
+  els.camChip.className = "chip";
+  els.sourceLabel.textContent = source ? "foto" : "nessuna sorgente";
+  if(!source) els.empty.classList.remove("hide");
+}
+
+function loadImage(file){
+  stopCamera();
+  const img = new Image();
+  img.onload = () => {
+    source = img;
+    sourceType = "image";
+    els.empty.classList.add("hide");
+    els.sourceLabel.textContent = "foto";
+    resizeView(img.naturalWidth,img.naturalHeight);
+    drawFrame();
+    detectOnce();
+    classifyOnce(true);
+  };
+  img.src = URL.createObjectURL(file);
+}
+
+function startLoops(){
+  stopLoops();
+  drawLoop();
+  tickTimer = setInterval(() => {
+    if(live){
+      detectOnce();
+      classifyOnce();
+    }
+  },TICK_MS);
+  detectOnce();
+  classifyOnce(true);
+}
+
+function stopLoops(){
+  if(raf) cancelAnimationFrame(raf);
+  raf = 0;
+  if(tickTimer) clearInterval(tickTimer);
+  tickTimer = 0;
+}
+
+function drawLoop(){
+  drawFrame();
+  raf = requestAnimationFrame(drawLoop);
+}
+
+function drawFrame(){
+  if(!source) return;
+  const w = sourceType === "camera" ? els.video.videoWidth : source.naturalWidth;
+  const h = sourceType === "camera" ? els.video.videoHeight : source.naturalHeight;
+  if(!w || !h) return;
+  resizeView(w,h);
+  const ctx = els.view.getContext("2d");
+  ctx.clearRect(0,0,els.view.width,els.view.height);
+  ctx.drawImage(source,0,0,els.view.width,els.view.height);
+  drawBoxes(ctx);
+}
+
+function resizeView(w,h){
+  if(els.view.width !== w || els.view.height !== h){
+    els.view.width = w;
+    els.view.height = h;
+  }
+}
+
+async function detectOnce(){
+  if(!model || !source || detecting){
+    if(detecting) skips += 1;
+    updateMetrics();
+    return;
+  }
+  const w = sourceType === "camera" ? els.video.videoWidth : source.naturalWidth;
+  const h = sourceType === "camera" ? els.video.videoHeight : source.naturalHeight;
+  if(!w || !h) return;
+  detecting = true;
+  const scale = Math.min(1,analysisSize / Math.max(w,h));
+  lastAnalysisWidth = Math.max(1,Math.round(w * scale));
+  lastAnalysisHeight = Math.max(1,Math.round(h * scale));
+  analysisCanvas.width = lastAnalysisWidth;
+  analysisCanvas.height = lastAnalysisHeight;
+  analysisCtx.drawImage(source,0,0,lastAnalysisWidth,lastAnalysisHeight);
+  const started = performance.now();
+  try{
+    const raw = await model.detect(analysisCanvas,Number(els.maxObjects.value),Number(els.threshold.value) / 100);
+    lastLatency = Math.round(performance.now() - started);
+    detections = stabilizeDetections(filterDetections(raw,lastAnalysisWidth,lastAnalysisHeight));
+    previousDetections = detections.map(item => ({ ...item, box:{ ...item.box } }));
+    frames += 1;
+    renderResult();
+  }catch(error){
+    showMessage("Errore rilevamento",error.message);
+  }finally{
+    detecting = false;
+    updateMetrics();
+  }
+}
+
+async function classifyOnce(force=false){
+  if(!classifier || !source || classifying) return;
+  const now = performance.now();
+  if(!force && now - lastClassifyAt < CLASSIFY_EVERY_MS) return;
+  const w = sourceType === "camera" ? els.video.videoWidth : source.naturalWidth;
+  const h = sourceType === "camera" ? els.video.videoHeight : source.naturalHeight;
+  if(!w || !h) return;
+  classifying = true;
+  lastClassifyAt = now;
+  classifyCanvas.width = 224;
+  classifyCanvas.height = 224;
+  classifyCtx.fillStyle = "#000";
+  classifyCtx.fillRect(0,0,224,224);
+  const scale = Math.min(224 / w,224 / h);
+  const dw = Math.round(w * scale);
+  const dh = Math.round(h * scale);
+  classifyCtx.drawImage(source,Math.round((224 - dw) / 2),Math.round((224 - dh) / 2),dw,dh);
+  const started = performance.now();
+  try{
+    const raw = await classifier.classify(classifyCanvas,5);
+    lastClassLatency = Math.round(performance.now() - started);
+    classHints = raw
+      .filter(item => item.probability >= .08)
+      .map(item => ({
+        label: prettifyClass(item.className),
+        raw:item.className,
+        score:item.probability
+      }));
+    renderClasses();
+    renderResult();
+  }catch(error){
+    classHints = [];
+  }finally{
+    classifying = false;
+    updateMetrics();
+  }
+}
+
+function filterDetections(raw,w,h){
+  const threshold = Number(els.threshold.value) / 100;
+  return raw
+    .filter(item => item.score >= threshold)
+    .map(item => ({
+      label:item.class,
+      score:item.score,
+      box:{ x:item.bbox[0], y:item.bbox[1], w:item.bbox[2], h:item.bbox[3] }
+    }))
+    .filter(item => plausible(item,w,h))
+    .sort((a,b) => b.score - a.score);
+}
+
+function stabilizeDetections(items){
+  const compact = suppressDuplicates(items);
+  const used = new Set();
+  return compact.map(item => {
+    let best = null;
+    let bestIndex = -1;
+    let bestIou = 0;
+    previousDetections.forEach((prev,index) => {
+      if(used.has(index) || prev.label !== item.label) return;
+      const value = iou(prev.box,item.box);
+      if(value > bestIou){
+        best = prev;
+        bestIndex = index;
+        bestIou = value;
+      }
+    });
+    if(best && bestIou > .22){
+      used.add(bestIndex);
+      item.box = blendBox(best.box,item.box,.68);
+      item.score = Math.max(item.score,best.score * .96);
+    }
+    return item;
+  });
+}
+
+function suppressDuplicates(items){
+  const kept = [];
+  items.forEach(item => {
+    const duplicate = kept.some(other => item.label === other.label && iou(item.box,other.box) > .52);
+    if(!duplicate) kept.push(item);
+  });
+  return kept;
+}
+
+function blendBox(oldBox,newBox,weight){
+  return {
+    x: oldBox.x * (1 - weight) + newBox.x * weight,
+    y: oldBox.y * (1 - weight) + newBox.y * weight,
+    w: oldBox.w * (1 - weight) + newBox.w * weight,
+    h: oldBox.h * (1 - weight) + newBox.h * weight
+  };
+}
+
+function iou(a,b){
+  const x1 = Math.max(a.x,b.x);
+  const y1 = Math.max(a.y,b.y);
+  const x2 = Math.min(a.x + a.w,b.x + b.w);
+  const y2 = Math.min(a.y + a.h,b.y + b.h);
+  const intersection = Math.max(0,x2 - x1) * Math.max(0,y2 - y1);
+  const union = a.w * a.h + b.w * b.h - intersection;
+  return union ? intersection / union : 0;
+}
+
+function plausible(item,w,h){
+  const area = item.box.w * item.box.h / (w * h);
+  const vehicle = new Set(["car","truck","bus","motorcycle","train","airplane","boat"]);
+  if(vehicle.has(item.label) && area < .035) return false;
+  if(item.label === "person" && area < .015) return false;
+  return true;
+}
+
+function drawBoxes(ctx){
+  const sx = els.view.width / lastAnalysisWidth;
+  const sy = els.view.height / lastAnalysisHeight;
+  detections.forEach((item,index) => {
+    const color = index % 3 === 0 ? "#41d998" : index % 3 === 1 ? "#4bd5ff" : "#ffc45d";
+    const x = item.box.x * sx;
+    const y = item.box.y * sy;
+    const w = item.box.w * sx;
+    const h = item.box.h * sy;
+    drawCornerBox(ctx,x,y,w,h,color);
+    drawLabel(ctx,x,y,`${it(item.label,1)} ${Math.round(item.score * 100)}%`,color);
+  });
+}
+
+function drawCornerBox(ctx,x,y,w,h,color){
+  const len = Math.max(18,Math.min(w,h) * .18);
+  ctx.save();
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = color;
+  ctx.fillStyle = "rgba(65,217,152,.04)";
+  ctx.fillRect(x,y,w,h);
+  ctx.beginPath();
+  ctx.moveTo(x,y + len); ctx.lineTo(x,y); ctx.lineTo(x + len,y);
+  ctx.moveTo(x + w - len,y); ctx.lineTo(x + w,y); ctx.lineTo(x + w,y + len);
+  ctx.moveTo(x + w,y + h - len); ctx.lineTo(x + w,y + h); ctx.lineTo(x + w - len,y + h);
+  ctx.moveTo(x + len,y + h); ctx.lineTo(x,y + h); ctx.lineTo(x,y + h - len);
+  ctx.stroke();
+  ctx.globalAlpha = .32;
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(x,y,w,h);
+  ctx.restore();
+}
+
+function drawLabel(ctx,x,y,text,color){
+  ctx.save();
+  ctx.font = "18px Cascadia Mono, Consolas, monospace";
+  const pad = 8;
+  const tw = ctx.measureText(text).width;
+  const lx = Math.max(4,Math.min(x,els.view.width - tw - pad * 2 - 4));
+  const ly = Math.max(24,y - 8);
+  ctx.fillStyle = "rgba(3,5,8,.82)";
+  ctx.fillRect(lx,ly - 24,tw + pad * 2,28);
+  ctx.fillStyle = color;
+  ctx.fillText(text,lx + pad,ly - 5);
+  ctx.restore();
+}
+
+function renderResult(){
+  if(!detections.length){
+    const hint = classSummary();
+    if(hint){
+      els.headline.innerHTML = `Forse vedo <strong>${escape(hint)}</strong>`;
+      els.sentence.textContent = "Nessun box abbastanza affidabile, ma il classificatore riconosce dettagli nel frame.";
+      els.note.textContent = "Per avere il riquadro serve che l'oggetto rientri nelle classi COCO; i tag sotto sono classificazione globale.";
+      els.objects.innerHTML = "";
+      renderClasses();
+    }else{
+      showMessage("Nessun oggetto sopra soglia","Abbassa la soglia o avvicina l'oggetto alla camera.");
+    }
+    return;
+  }
+  const groups = group(detections);
+  const main = formatGroups(groups.slice(0,4));
+  els.headline.innerHTML = `Vedo <strong>${escape(main)}</strong>`;
+  els.sentence.textContent = `Nel frame sono presenti ${formatGroups(groups)}.`;
+  const hint = classSummary();
+  els.note.textContent = hint ? `${positions(detections.slice(0,5))} Dettagli probabili: ${hint}.` : positions(detections.slice(0,5));
+  renderClasses();
+  els.objects.innerHTML = "";
+  detections.forEach(item => {
+    const div = document.createElement("div");
+    div.className = "obj";
+    div.innerHTML = `<div><b>${escape(it(item.label,1))}</b><small>${escape(position(item))} - area ${Math.round(area(item) * 100)}%</small></div><div class="score">${Math.round(item.score * 100)}%</div>`;
+    els.objects.appendChild(div);
+  });
+}
+
+function renderClasses(){
+  els.classes.innerHTML = "";
+  classHints.slice(0,5).forEach(item => {
+    const tag = document.createElement("div");
+    tag.className = "tag";
+    tag.innerHTML = `<strong>${Math.round(item.score * 100)}%</strong> ${escape(item.label)}`;
+    els.classes.appendChild(tag);
+  });
+}
+
+function classSummary(){
+  const useful = classHints
+    .filter(item => item.score >= .12)
+    .map(item => item.label)
+    .filter((label,index,all) => all.indexOf(label) === index)
+    .slice(0,3);
+  return useful.join(", ");
+}
+
+function group(items){
+  const map = new Map();
+  items.forEach(item => {
+    const cur = map.get(item.label) || { label:item.label,count:0,best:0 };
+    cur.count += 1;
+    cur.best = Math.max(cur.best,item.score);
+    map.set(item.label,cur);
+  });
+  return [...map.values()].sort((a,b) => b.count - a.count || b.best - a.best);
+}
+
+function formatGroups(groups){
+  const parts = groups.map(g => `${g.count} ${it(g.label,g.count)}`);
+  if(parts.length === 1) return parts[0];
+  return `${parts.slice(0,-1).join(", ")} e ${parts.at(-1)}`;
+}
+
+function positions(items){
+  return "Posizione: " + items.map(item => `${it(item.label,1)} ${position(item)}`).join("; ") + ".";
+}
+
+function position(item){
+  const cx = item.box.x + item.box.w / 2;
+  const cy = item.box.y + item.box.h / 2;
+  const x = cx < lastAnalysisWidth * .33 ? "a sinistra" : cx > lastAnalysisWidth * .66 ? "a destra" : "al centro";
+  const y = cy < lastAnalysisHeight * .33 ? "in alto" : cy > lastAnalysisHeight * .66 ? "in basso" : "a meta altezza";
+  return `${x}, ${y}`;
+}
+
+function area(item){
+  return item.box.w * item.box.h / (lastAnalysisWidth * lastAnalysisHeight);
+}
+
+function it(label,count){
+  const pair = IT[label];
+  if(!pair) return label;
+  return count === 1 ? pair[0] : pair[1];
+}
+
+function prettifyClass(text){
+  const first = String(text).split(",")[0].trim().toLowerCase();
+  return CLASS_HINTS[first] || first.replace(/_/g," ");
+}
+
+function updateMetrics(){
+  els.latency.textContent = detecting ? "..." : lastLatency ? `${lastLatency} ms` : "-";
+  els.count.textContent = String(detections.length);
+  els.frames.textContent = String(frames);
+  els.skips.textContent = String(skips);
+  els.classLatency.textContent = classifying ? "..." : lastClassLatency ? `${lastClassLatency} ms` : "-";
+  els.tickChip.textContent = detecting ? "tick: occupato" : `tick: ${TICK_MS} ms`;
+  els.tickChip.className = detecting ? "chip busy" : "chip ok";
+  window.__NV_STATE__ = {
+    liveDetection: live,
+    detecting,
+    frames,
+    skips,
+    lastMs: lastLatency,
+    lastClassMs: lastClassLatency,
+    sourceType,
+    analysisSize,
+    classHints,
+    lastObjects: detections.map(item => ({
+      label:item.label,
+      score:item.score,
+      box:item.box
+    }))
+  };
+}
+
+function showMessage(title,msg){
+  els.headline.textContent = title;
+  els.sentence.textContent = msg || "";
+  els.note.textContent = "";
+  els.objects.innerHTML = "";
+  renderClasses();
+}
+
+function drawBlank(){
+  els.view.width = 1280;
+  els.view.height = 720;
+  const ctx = els.view.getContext("2d");
+  ctx.fillStyle = "#030508";
+  ctx.fillRect(0,0,els.view.width,els.view.height);
+}
+
+function resetAll(){
+  stopCamera();
+  source = null;
+  sourceType = "none";
+  detections = [];
+  classHints = [];
+  previousDetections = [];
+  frames = 0;
+  skips = 0;
+  lastLatency = 0;
+  lastClassLatency = 0;
+  lastClassifyAt = 0;
+  els.empty.classList.remove("hide");
+  els.sourceLabel.textContent = "nessuna sorgente";
+  showMessage("Nessun risultato","Aspetto una sorgente video o foto.");
+  updateMetrics();
+  drawBlank();
+}
+
+function cameraHelp(error){
+  const name = error && error.name ? error.name : "";
+  if(name === "NotAllowedError" || name === "SecurityError") return "Permesso camera negato. Clicca lucchetto/camera nella barra indirizzi, Consenti fotocamera, poi ricarica.";
+  if(name === "NotReadableError") return "La camera e usata da un'altra app. Chiudi Teams, Zoom, OBS o simili.";
+  if(name === "NotFoundError") return "Nessuna camera trovata.";
+  return error.message || "Errore sconosciuto.";
+}
+
+function escape(text){
+  return String(text).replace(/[&<>"']/g,ch => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" })[ch]);
+}
+</script>
+</body>
+</html>
