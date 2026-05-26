@@ -63,9 +63,12 @@ input[type=file]{display:none}
 .classes{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
 .tag{border:1px solid rgba(75,213,255,.35);background:rgba(75,213,255,.08);color:#d9f6ff;padding:7px 9px;font:12px var(--mono)}
 .tag strong{color:var(--cyan)}
+.tag.scene{border-color:rgba(255,196,93,.35);background:rgba(255,196,93,.08);color:#fff0c5}
+.tag.scene strong{color:var(--amber)}
 .obj{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;border:1px solid var(--line);background:var(--panel2);padding:10px 12px}
 .obj b{font-size:18px}
 .obj small{display:block;color:var(--muted);font:12px var(--mono);margin-top:4px}
+.obj em{display:block;color:#d9f6ff;font:12px var(--mono);font-style:normal;margin-top:5px}
 .score{font:14px var(--mono);color:var(--green)}
 .warn{color:var(--amber)}
 </style>
@@ -75,11 +78,12 @@ input[type=file]{display:none}
   <div class="top">
     <div>
       <h1>NeuralVision Live</h1>
-      <div class="sub">Webcam fluida: box ogni 500 ms, dettaglio piu alto e un secondo modello che legge anche il contenuto generale del frame.</div>
+      <div class="sub">Webcam fluida: box ogni 500 ms, doppio detector locale, dettagli sui ritagli degli oggetti e lettura extra di volti/codici quando disponibili.</div>
     </div>
     <div class="status">
       <div class="chip" id="modelChip">modello: caricamento</div>
       <div class="chip" id="detailChip">dettagli: caricamento</div>
+      <div class="chip" id="preciseChip">preciso: caricamento</div>
       <div class="chip" id="camChip">camera: ferma</div>
       <div class="chip" id="tickChip">tick: 500 ms</div>
     </div>
@@ -145,7 +149,10 @@ input[type=file]{display:none}
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.1/dist/mobilenet.min.js"></script>
 <script>
 const TICK_MS = 500;
-const CLASSIFY_EVERY_MS = 1500;
+const CLASSIFY_EVERY_MS = 2200;
+const PRECISE_EVERY_MS = 900;
+const BARCODE_EVERY_MS = 1800;
+const CROP_CLASSIFY_LIMIT = 3;
 const IT = {
   person:["persona","persone"],bicycle:["bicicletta","biciclette"],car:["auto","auto"],motorcycle:["moto","moto"],
   airplane:["aereo","aerei"],bus:["bus","bus"],train:["treno","treni"],truck:["camion","camion"],boat:["barca","barche"],
@@ -154,7 +161,21 @@ const IT = {
   bottle:["bottiglia","bottiglie"],cup:["tazza","tazze"],chair:["sedia","sedie"],couch:["divano","divani"],
   "potted plant":["pianta","piante"],bed:["letto","letti"],"dining table":["tavolo","tavoli"],tv:["televisore","televisori"],
   laptop:["portatile","portatili"],mouse:["mouse","mouse"],remote:["telecomando","telecomandi"],keyboard:["tastiera","tastiere"],
-  "cell phone":["telefono","telefoni"],book:["libro","libri"],clock:["orologio","orologi"]
+  "cell phone":["telefono","telefoni"],book:["libro","libri"],clock:["orologio","orologi"],
+  face:["volto","volti"],barcode:["codice","codici"],"qr code":["QR code","QR code"]
+};
+const LABEL_ALIAS = {
+  "mobile phone":"cell phone",
+  cellphone:"cell phone",
+  "cellular telephone":"cell phone",
+  television:"tv",
+  "tv monitor":"tv",
+  monitor:"tv",
+  sofa:"couch",
+  "pottedplant":"potted plant",
+  "diningtable":"dining table",
+  "aeroplane":"airplane",
+  motorbike:"motorcycle"
 };
 const CLASS_HINTS = {
   sunglasses:"occhiali da sole", "sunglass":"occhiali da sole", "eyeglasses":"occhiali",
@@ -165,12 +186,15 @@ const CLASS_HINTS = {
   "water bottle":"bottiglia", bottle:"bottiglia", mug:"tazza", cup:"tazza", backpack:"zaino",
   sweatshirt:"felpa", jersey:"maglia", suit:"giacca", "lab coat":"camice", book:"libro",
   "binder":"raccoglitore", "packet":"pacchetto", "remote control":"telecomando",
-  "web site":"schermo con pagina", printer:"stampante", "digital clock":"orologio digitale"
+  "web site":"schermo con pagina", printer:"stampante", "digital clock":"orologio digitale",
+  "monitor":"monitor", "desktop computer":"computer", "computer keyboard":"tastiera",
+  "mask":"mascherina", "handkerchief":"fazzoletto", "wallet":"portafoglio"
 };
 
 const els = {
   modelChip: document.getElementById("modelChip"),
   detailChip: document.getElementById("detailChip"),
+  preciseChip: document.getElementById("preciseChip"),
   camChip: document.getElementById("camChip"),
   tickChip: document.getElementById("tickChip"),
   sourceLabel: document.getElementById("sourceLabel"),
@@ -201,6 +225,9 @@ const els = {
 
 let model = null;
 let classifier = null;
+let preciseDetector = null;
+let faceDetector = null;
+let barcodeDetector = null;
 let stream = null;
 let raf = 0;
 let tickTimer = 0;
@@ -213,8 +240,16 @@ let analysisCanvas = document.createElement("canvas");
 let analysisCtx = analysisCanvas.getContext("2d",{ willReadFrequently:false });
 let classifyCanvas = document.createElement("canvas");
 let classifyCtx = classifyCanvas.getContext("2d",{ willReadFrequently:false });
+let sceneCanvas = document.createElement("canvas");
+let sceneCtx = sceneCanvas.getContext("2d",{ willReadFrequently:true });
 let detections = [];
+let cocoDetections = [];
+let preciseDetections = [];
+let faceDetections = [];
+let barcodeDetections = [];
 let classHints = [];
+let sceneHints = [];
+let objectHints = new Map();
 let previousDetections = [];
 let lastAnalysisWidth = 1;
 let lastAnalysisHeight = 1;
@@ -222,8 +257,12 @@ let frames = 0;
 let skips = 0;
 let lastLatency = 0;
 let lastClassLatency = 0;
+let lastPreciseLatency = 0;
 let lastClassifyAt = 0;
+let lastPreciseAt = 0;
+let lastBarcodeAt = 0;
 let classifying = false;
+let preciseDetecting = false;
 window.__NV_STATE__ = {};
 
 boot();
@@ -251,6 +290,10 @@ function bind(){
     els.thresholdValue.textContent = `${els.threshold.value}%`;
     if(source) detectOnce();
   };
+  els.maxObjects.oninput = () => {
+    updateFinalDetections();
+    renderResult();
+  };
   els.qualitySeg.onclick = event => {
     const btn = event.target.closest("button[data-size]");
     if(!btn) return;
@@ -273,10 +316,47 @@ async function loadModel(){
     els.modelChip.className = "chip ok";
     if(source) detectOnce();
     loadClassifier();
+    loadPreciseModels();
+    setupNativeDetectors();
   }catch(error){
     els.modelChip.textContent = "modello: errore";
     els.modelChip.className = "chip err";
     showMessage("Modello non caricato",error.message);
+  }
+}
+
+async function loadPreciseModels(){
+  try{
+    els.preciseChip.textContent = "preciso: caricamento";
+    els.preciseChip.className = "chip busy";
+    const visionLib = window.vision || await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest");
+    const { FilesetResolver, ObjectDetector, FaceDetector } = visionLib;
+    const fileset = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm");
+    preciseDetector = await ObjectDetector.createFromOptions(fileset,{
+      baseOptions:{ modelAssetPath:"https://storage.googleapis.com/mediapipe-tasks/object_detector/efficientdet_lite0_uint8.tflite" },
+      scoreThreshold:.34,
+      maxResults:12,
+      runningMode:"IMAGE"
+    });
+    faceDetector = await FaceDetector.createFromModelPath(fileset,"https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite");
+    els.preciseChip.textContent = "preciso: pronto";
+    els.preciseChip.className = "chip ok";
+    if(source) runPreciseScan(true);
+  }catch(error){
+    preciseDetector = null;
+    faceDetector = null;
+    els.preciseChip.textContent = "preciso: errore";
+    els.preciseChip.className = "chip err";
+  }
+}
+
+function setupNativeDetectors(){
+  if("BarcodeDetector" in window){
+    try{
+      barcodeDetector = new BarcodeDetector({ formats:["qr_code","code_128","ean_13","ean_8","upc_a","upc_e","data_matrix"] });
+    }catch(error){
+      barcodeDetector = null;
+    }
   }
 }
 
@@ -367,6 +447,8 @@ function loadImage(file){
     resizeView(img.naturalWidth,img.naturalHeight);
     drawFrame();
     detectOnce();
+    runPreciseScan(true);
+    scanBarcodes(true);
     classifyOnce(true);
   };
   img.src = URL.createObjectURL(file);
@@ -378,10 +460,14 @@ function startLoops(){
   tickTimer = setInterval(() => {
     if(live){
       detectOnce();
+      runPreciseScan();
+      scanBarcodes();
       classifyOnce();
     }
   },TICK_MS);
   detectOnce();
+  runPreciseScan(true);
+  scanBarcodes(true);
   classifyOnce(true);
 }
 
@@ -426,18 +512,13 @@ async function detectOnce(){
   const h = sourceType === "camera" ? els.video.videoHeight : source.naturalHeight;
   if(!w || !h) return;
   detecting = true;
-  const scale = Math.min(1,analysisSize / Math.max(w,h));
-  lastAnalysisWidth = Math.max(1,Math.round(w * scale));
-  lastAnalysisHeight = Math.max(1,Math.round(h * scale));
-  analysisCanvas.width = lastAnalysisWidth;
-  analysisCanvas.height = lastAnalysisHeight;
-  analysisCtx.drawImage(source,0,0,lastAnalysisWidth,lastAnalysisHeight);
+  prepareAnalysisFrame();
   const started = performance.now();
   try{
     const raw = await model.detect(analysisCanvas,Number(els.maxObjects.value),Number(els.threshold.value) / 100);
     lastLatency = Math.round(performance.now() - started);
-    detections = stabilizeDetections(filterDetections(raw,lastAnalysisWidth,lastAnalysisHeight));
-    previousDetections = detections.map(item => ({ ...item, box:{ ...item.box } }));
+    cocoDetections = filterDetections(raw,lastAnalysisWidth,lastAnalysisHeight,"coco");
+    updateFinalDetections();
     frames += 1;
     renderResult();
   }catch(error){
@@ -445,6 +526,65 @@ async function detectOnce(){
   }finally{
     detecting = false;
     updateMetrics();
+  }
+}
+
+function prepareAnalysisFrame(maxSize=analysisSize){
+  const w = sourceType === "camera" ? els.video.videoWidth : source.naturalWidth;
+  const h = sourceType === "camera" ? els.video.videoHeight : source.naturalHeight;
+  if(!w || !h) return false;
+  const scale = Math.min(1,maxSize / Math.max(w,h));
+  lastAnalysisWidth = Math.max(1,Math.round(w * scale));
+  lastAnalysisHeight = Math.max(1,Math.round(h * scale));
+  analysisCanvas.width = lastAnalysisWidth;
+  analysisCanvas.height = lastAnalysisHeight;
+  analysisCtx.drawImage(source,0,0,lastAnalysisWidth,lastAnalysisHeight);
+  return true;
+}
+
+async function runPreciseScan(force=false){
+  if((!preciseDetector && !faceDetector) || !source || preciseDetecting) return;
+  const now = performance.now();
+  if(!force && now - lastPreciseAt < PRECISE_EVERY_MS) return;
+  if(!prepareAnalysisFrame()) return;
+  preciseDetecting = true;
+  lastPreciseAt = now;
+  const started = performance.now();
+  try{
+    if(preciseDetector){
+      const result = preciseDetector.detect(analysisCanvas);
+      preciseDetections = convertMediaPipeObjects(result);
+    }
+    if(faceDetector){
+      const faces = faceDetector.detect(analysisCanvas);
+      faceDetections = convertMediaPipeFaces(faces);
+    }
+    lastPreciseLatency = Math.round(performance.now() - started);
+    updateFinalDetections();
+    renderResult();
+  }catch(error){
+    preciseDetections = [];
+    faceDetections = [];
+  }finally{
+    preciseDetecting = false;
+    updateMetrics();
+  }
+}
+
+async function scanBarcodes(force=false){
+  if(!barcodeDetector || !source) return;
+  const now = performance.now();
+  if(!force && now - lastBarcodeAt < BARCODE_EVERY_MS) return;
+  lastBarcodeAt = now;
+  try{
+    const codes = await barcodeDetector.detect(source);
+    barcodeDetections = codes.map(code => barcodeToDetection(code)).filter(Boolean);
+    if(barcodeDetections.length){
+      updateFinalDetections();
+      renderResult();
+    }
+  }catch(error){
+    barcodeDetections = [];
   }
 }
 
@@ -476,6 +616,8 @@ async function classifyOnce(force=false){
         raw:item.className,
         score:item.probability
       }));
+    sceneHints = analyzeScene();
+    await classifyDetectedCrops();
     renderClasses();
     renderResult();
   }catch(error){
@@ -486,17 +628,166 @@ async function classifyOnce(force=false){
   }
 }
 
-function filterDetections(raw,w,h){
+async function classifyDetectedCrops(){
+  const sourceW = sourceType === "camera" ? els.video.videoWidth : source.naturalWidth;
+  const sourceH = sourceType === "camera" ? els.video.videoHeight : source.naturalHeight;
+  if(!sourceW || !sourceH || !detections.length) return;
+  const nextHints = new Map();
+  const candidates = detections
+    .filter(item => item.label !== "face" && item.label !== "barcode" && item.label !== "qr code")
+    .slice(0,CROP_CLASSIFY_LIMIT);
+  for(const item of candidates){
+    const sourceBox = toSourceBox(item,sourceW,sourceH,.18);
+    if(!sourceBox) continue;
+    classifyCtx.fillStyle = "#000";
+    classifyCtx.fillRect(0,0,224,224);
+    classifyCtx.drawImage(source,sourceBox.x,sourceBox.y,sourceBox.w,sourceBox.h,0,0,224,224);
+    const raw = await classifier.classify(classifyCanvas,3);
+    const hints = raw
+      .filter(entry => entry.probability >= .08)
+      .map(entry => ({
+        label:prettifyClass(entry.className),
+        raw:entry.className,
+        score:entry.probability
+      }))
+      .filter(entry => entry.label !== it(item.label,1));
+    if(hints.length){
+      nextHints.set(objectKey(item),hints);
+      if(!nextHints.has(item.label)) nextHints.set(item.label,hints);
+    }
+  }
+  objectHints = nextHints;
+}
+
+function toSourceBox(item,sourceW,sourceH,margin=0){
+  const scaleX = sourceW / lastAnalysisWidth;
+  const scaleY = sourceH / lastAnalysisHeight;
+  let x = item.box.x * scaleX;
+  let y = item.box.y * scaleY;
+  let w = item.box.w * scaleX;
+  let h = item.box.h * scaleY;
+  const growX = w * margin;
+  const growY = h * margin;
+  x = Math.max(0,x - growX);
+  y = Math.max(0,y - growY);
+  w = Math.min(sourceW - x,w + growX * 2);
+  h = Math.min(sourceH - y,h + growY * 2);
+  if(w < 12 || h < 12) return null;
+  return { x,y,w,h };
+}
+
+function analyzeScene(){
+  if(!source) return [];
+  const w = sourceType === "camera" ? els.video.videoWidth : source.naturalWidth;
+  const h = sourceType === "camera" ? els.video.videoHeight : source.naturalHeight;
+  if(!w || !h) return [];
+  sceneCanvas.width = 32;
+  sceneCanvas.height = 32;
+  sceneCtx.drawImage(source,0,0,32,32);
+  const data = sceneCtx.getImageData(0,0,32,32).data;
+  let light = 0;
+  let sat = 0;
+  const bins = { rosso:0, verde:0, blu:0, giallo:0, scuro:0, chiaro:0 };
+  for(let i=0;i<data.length;i+=4){
+    const r = data[i], g = data[i+1], b = data[i+2];
+    const max = Math.max(r,g,b);
+    const min = Math.min(r,g,b);
+    light += (r + g + b) / 3;
+    sat += max - min;
+    if(max < 55) bins.scuro += 1;
+    else if(min > 200) bins.chiaro += 1;
+    else if(r > g * 1.18 && r > b * 1.18) bins.rosso += 1;
+    else if(g > r * 1.12 && g > b * 1.12) bins.verde += 1;
+    else if(b > r * 1.15 && b > g * 1.15) bins.blu += 1;
+    else if(r > 145 && g > 120 && b < 105) bins.giallo += 1;
+  }
+  const px = data.length / 4;
+  const avgLight = light / px;
+  const avgSat = sat / px;
+  const dominant = Object.entries(bins).sort((a,b) => b[1] - a[1])[0];
+  const hints = [];
+  hints.push({ label:avgLight < 75 ? "ambiente scuro" : avgLight > 175 ? "ambiente molto chiaro" : "luce media", score:1, type:"scene" });
+  if(avgSat < 28) hints.push({ label:"colori poco saturi", score:1, type:"scene" });
+  if(dominant && dominant[1] > px * .18) hints.push({ label:`dominante ${dominant[0]}`, score:dominant[1] / px, type:"scene" });
+  return hints;
+}
+
+function filterDetections(raw,w,h,sourceName="coco"){
   const threshold = Number(els.threshold.value) / 100;
   return raw
     .filter(item => item.score >= threshold)
     .map(item => ({
-      label:item.class,
+      label:normalizeLabel(item.class),
       score:item.score,
+      source:sourceName,
       box:{ x:item.bbox[0], y:item.bbox[1], w:item.bbox[2], h:item.bbox[3] }
     }))
     .filter(item => plausible(item,w,h))
     .sort((a,b) => b.score - a.score);
+}
+
+function convertMediaPipeObjects(result){
+  const threshold = Math.max(.28,Number(els.threshold.value) / 100 - .08);
+  return (result.detections || [])
+    .map(item => {
+      const category = (item.categories || [])[0] || {};
+      const box = item.boundingBox || {};
+      return {
+        label:normalizeLabel(category.categoryName || category.displayName || ""),
+        score:category.score || 0,
+        source:"mediapipe",
+        box:{ x:box.originX || 0, y:box.originY || 0, w:box.width || 0, h:box.height || 0 }
+      };
+    })
+    .filter(item => item.label && item.score >= threshold)
+    .filter(item => plausible(item,lastAnalysisWidth,lastAnalysisHeight));
+}
+
+function convertMediaPipeFaces(result){
+  return (result.detections || [])
+    .map(item => {
+      const category = (item.categories || [])[0] || {};
+      const box = item.boundingBox || {};
+      return {
+        label:"face",
+        score:category.score || .75,
+        source:"face",
+        box:{ x:box.originX || 0, y:box.originY || 0, w:box.width || 0, h:box.height || 0 }
+      };
+    })
+    .filter(item => item.box.w > 18 && item.box.h > 18);
+}
+
+function barcodeToDetection(code){
+  const box = code.boundingBox;
+  if(!box) return null;
+  const sourceW = sourceType === "camera" ? els.video.videoWidth : source.naturalWidth;
+  const sourceH = sourceType === "camera" ? els.video.videoHeight : source.naturalHeight;
+  if(!sourceW || !sourceH) return null;
+  const label = code.format === "qr_code" ? "qr code" : "barcode";
+  return {
+    label,
+    score:.99,
+    source:"barcode",
+    value:code.rawValue || "",
+    box:{
+      x:box.x * lastAnalysisWidth / sourceW,
+      y:box.y * lastAnalysisHeight / sourceH,
+      w:box.width * lastAnalysisWidth / sourceW,
+      h:box.height * lastAnalysisHeight / sourceH
+    }
+  };
+}
+
+function updateFinalDetections(){
+  const merged = [
+    ...cocoDetections,
+    ...preciseDetections,
+    ...faceDetections,
+    ...barcodeDetections
+  ];
+  detections = stabilizeDetections(merged).slice(0,Number(els.maxObjects.value));
+  previousDetections = detections.map(item => ({ ...item, box:{ ...item.box } }));
 }
 
 function stabilizeDetections(items){
@@ -527,10 +818,23 @@ function stabilizeDetections(items){
 function suppressDuplicates(items){
   const kept = [];
   items.forEach(item => {
-    const duplicate = kept.some(other => item.label === other.label && iou(item.box,other.box) > .52);
-    if(!duplicate) kept.push(item);
+    const index = kept.findIndex(other => item.label === other.label && iou(item.box,other.box) > .46);
+    if(index === -1){
+      kept.push(item);
+      return;
+    }
+    if(sourceWeight(item) + item.score > sourceWeight(kept[index]) + kept[index].score){
+      kept[index] = item;
+    }
   });
   return kept;
+}
+
+function sourceWeight(item){
+  if(item.source === "barcode") return 1.4;
+  if(item.source === "mediapipe") return .18;
+  if(item.source === "face") return .12;
+  return .1;
 }
 
 function blendBox(oldBox,newBox,weight){
@@ -554,10 +858,17 @@ function iou(a,b){
 
 function plausible(item,w,h){
   const area = item.box.w * item.box.h / (w * h);
+  if(item.label === "face") return area >= .004;
+  if(item.label === "barcode" || item.label === "qr code") return area >= .002;
   const vehicle = new Set(["car","truck","bus","motorcycle","train","airplane","boat"]);
   if(vehicle.has(item.label) && area < .035) return false;
   if(item.label === "person" && area < .015) return false;
   return true;
+}
+
+function normalizeLabel(label){
+  const key = String(label || "").trim().toLowerCase().replace(/_/g," ");
+  return LABEL_ALIAS[key] || key;
 }
 
 function drawBoxes(ctx){
@@ -632,7 +943,9 @@ function renderResult(){
   detections.forEach(item => {
     const div = document.createElement("div");
     div.className = "obj";
-    div.innerHTML = `<div><b>${escape(it(item.label,1))}</b><small>${escape(position(item))} - area ${Math.round(area(item) * 100)}%</small></div><div class="score">${Math.round(item.score * 100)}%</div>`;
+    const detail = objectDetails(item);
+    const code = item.value ? ` - ${escape(String(item.value).slice(0,48))}` : "";
+    div.innerHTML = `<div><b>${escape(it(item.label,1))}</b><small>${escape(position(item))} - area ${Math.round(area(item) * 100)}% - ${escape(item.source || "locale")}${code}</small>${detail ? `<em>${escape(detail)}</em>` : ""}</div><div class="score">${Math.round(item.score * 100)}%</div>`;
     els.objects.appendChild(div);
   });
 }
@@ -645,6 +958,29 @@ function renderClasses(){
     tag.innerHTML = `<strong>${Math.round(item.score * 100)}%</strong> ${escape(item.label)}`;
     els.classes.appendChild(tag);
   });
+  sceneHints.slice(0,3).forEach(item => {
+    const tag = document.createElement("div");
+    tag.className = "tag scene";
+    tag.innerHTML = `<strong>scene</strong> ${escape(item.label)}`;
+    els.classes.appendChild(tag);
+  });
+}
+
+function objectDetails(item){
+  const hints = objectHints.get(objectKey(item)) || objectHints.get(item.label) || [];
+  const names = hints
+    .map(hint => hint.label)
+    .filter((label,index,all) => all.indexOf(label) === index)
+    .slice(0,3);
+  return names.length ? `dettagli crop: ${names.join(", ")}` : "";
+}
+
+function objectKey(item){
+  const cx = item.box.x + item.box.w / 2;
+  const cy = item.box.y + item.box.h / 2;
+  const gx = Math.max(0,Math.min(2,Math.floor(cx / Math.max(1,lastAnalysisWidth) * 3)));
+  const gy = Math.max(0,Math.min(2,Math.floor(cy / Math.max(1,lastAnalysisHeight) * 3)));
+  return `${item.label}:${gx}:${gy}`;
 }
 
 function classSummary(){
@@ -708,16 +1044,26 @@ function updateMetrics(){
   els.classLatency.textContent = classifying ? "..." : lastClassLatency ? `${lastClassLatency} ms` : "-";
   els.tickChip.textContent = detecting ? "tick: occupato" : `tick: ${TICK_MS} ms`;
   els.tickChip.className = detecting ? "chip busy" : "chip ok";
+  if(preciseDetector || faceDetector){
+    els.preciseChip.textContent = preciseDetecting ? "preciso: scan" : lastPreciseLatency ? `preciso: ${lastPreciseLatency} ms` : "preciso: pronto";
+    els.preciseChip.className = preciseDetecting ? "chip busy" : "chip ok";
+  }
   window.__NV_STATE__ = {
     liveDetection: live,
     detecting,
+    preciseDetecting,
     frames,
     skips,
     lastMs: lastLatency,
     lastClassMs: lastClassLatency,
+    lastPreciseMs: lastPreciseLatency,
     sourceType,
     analysisSize,
     classHints,
+    sceneHints,
+    preciseObjects: preciseDetections,
+    faces: faceDetections,
+    barcodes: barcodeDetections,
     lastObjects: detections.map(item => ({
       label:item.label,
       score:item.score,
@@ -747,13 +1093,22 @@ function resetAll(){
   source = null;
   sourceType = "none";
   detections = [];
+  cocoDetections = [];
+  preciseDetections = [];
+  faceDetections = [];
+  barcodeDetections = [];
   classHints = [];
+  sceneHints = [];
+  objectHints = new Map();
   previousDetections = [];
   frames = 0;
   skips = 0;
   lastLatency = 0;
   lastClassLatency = 0;
+  lastPreciseLatency = 0;
   lastClassifyAt = 0;
+  lastPreciseAt = 0;
+  lastBarcodeAt = 0;
   els.empty.classList.remove("hide");
   els.sourceLabel.textContent = "nessuna sorgente";
   showMessage("Nessun risultato","Aspetto una sorgente video o foto.");
