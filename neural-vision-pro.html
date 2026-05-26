@@ -105,6 +105,7 @@ input[type=file]{display:none}
       <div class="chip" id="modelChip">modello: caricamento</div>
       <div class="chip" id="detailChip">dettagli: caricamento</div>
       <div class="chip" id="preciseChip">preciso: caricamento</div>
+      <div class="chip" id="zoneChip">zone: attesa</div>
       <div class="chip" id="camChip">camera: ferma</div>
       <div class="chip" id="tickChip">tick: 500 ms</div>
     </div>
@@ -173,6 +174,8 @@ const TICK_MS = 500;
 const CLASSIFY_EVERY_MS = 2200;
 const PRECISE_EVERY_MS = 900;
 const BARCODE_EVERY_MS = 1800;
+const ZONE_SCAN_FAST_MS = 1800;
+const ZONE_SCAN_PRECISE_MS = 900;
 const CROP_CLASSIFY_LIMIT = 3;
 const IT = {
   person:["persona","persone"],bicycle:["bicicletta","biciclette"],car:["auto","auto"],motorcycle:["moto","moto"],
@@ -216,6 +219,7 @@ const els = {
   modelChip: document.getElementById("modelChip"),
   detailChip: document.getElementById("detailChip"),
   preciseChip: document.getElementById("preciseChip"),
+  zoneChip: document.getElementById("zoneChip"),
   camChip: document.getElementById("camChip"),
   tickChip: document.getElementById("tickChip"),
   sourceLabel: document.getElementById("sourceLabel"),
@@ -259,12 +263,15 @@ let sourceType = "none";
 let analysisSize = 416;
 let analysisCanvas = document.createElement("canvas");
 let analysisCtx = analysisCanvas.getContext("2d",{ willReadFrequently:false });
+let zoneCanvas = document.createElement("canvas");
+let zoneCtx = zoneCanvas.getContext("2d",{ willReadFrequently:false });
 let classifyCanvas = document.createElement("canvas");
 let classifyCtx = classifyCanvas.getContext("2d",{ willReadFrequently:false });
 let sceneCanvas = document.createElement("canvas");
 let sceneCtx = sceneCanvas.getContext("2d",{ willReadFrequently:true });
 let detections = [];
 let cocoDetections = [];
+let zoneDetections = [];
 let preciseDetections = [];
 let faceDetections = [];
 let barcodeDetections = [];
@@ -279,10 +286,13 @@ let skips = 0;
 let lastLatency = 0;
 let lastClassLatency = 0;
 let lastPreciseLatency = 0;
+let lastZoneLatency = 0;
 let lastClassifyAt = 0;
 let lastPreciseAt = 0;
+let lastZoneAt = 0;
 let lastBarcodeAt = 0;
 let classifying = false;
+let zoneScanning = false;
 let preciseDetecting = false;
 window.__NV_STATE__ = {};
 
@@ -320,7 +330,10 @@ function bind(){
     if(!btn) return;
     analysisSize = Number(btn.dataset.size);
     [...els.qualitySeg.querySelectorAll("button")].forEach(item => item.classList.toggle("on",item === btn));
-    if(source) detectOnce();
+    if(source){
+      lastZoneAt = 0;
+      detectOnce();
+    }
   };
 }
 
@@ -335,6 +348,8 @@ async function loadModel(){
     model = await loadDetector();
     els.modelChip.textContent = "detector: pronto";
     els.modelChip.className = "chip ok";
+    els.zoneChip.textContent = "zone: pronte";
+    els.zoneChip.className = "chip ok";
     if(source) detectOnce();
     loadClassifier();
     loadPreciseModels();
@@ -537,8 +552,9 @@ async function detectOnce(){
   const started = performance.now();
   try{
     const raw = await model.detect(analysisCanvas,Number(els.maxObjects.value),Number(els.threshold.value) / 100);
-    lastLatency = Math.round(performance.now() - started);
     cocoDetections = filterDetections(raw,lastAnalysisWidth,lastAnalysisHeight,"coco");
+    if(shouldScanZones()) await scanZones();
+    lastLatency = Math.round(performance.now() - started);
     updateFinalDetections();
     frames += 1;
     renderResult();
@@ -561,6 +577,81 @@ function prepareAnalysisFrame(maxSize=analysisSize){
   analysisCanvas.height = lastAnalysisHeight;
   analysisCtx.drawImage(source,0,0,lastAnalysisWidth,lastAnalysisHeight);
   return true;
+}
+
+function shouldScanZones(force=false){
+  if(force || !lastZoneAt) return true;
+  const interval = analysisSize >= 512 ? ZONE_SCAN_PRECISE_MS : ZONE_SCAN_FAST_MS;
+  return performance.now() - lastZoneAt >= interval;
+}
+
+async function scanZones(force=false){
+  if(!model || !source || zoneScanning || !shouldScanZones(force)) return;
+  const sourceW = sourceType === "camera" ? els.video.videoWidth : source.naturalWidth;
+  const sourceH = sourceType === "camera" ? els.video.videoHeight : source.naturalHeight;
+  if(!sourceW || !sourceH) return;
+  zoneScanning = true;
+  lastZoneAt = performance.now();
+  const started = performance.now();
+  try{
+    const zones = buildZones(sourceW,sourceH);
+    const threshold = Math.max(.22,Number(els.threshold.value) / 100 - .1);
+    const results = [];
+    for(const zone of zones){
+      const cropResults = await detectZone(zone,sourceW,sourceH,threshold);
+      results.push(...cropResults);
+    }
+    zoneDetections = results;
+    lastZoneLatency = Math.round(performance.now() - started);
+  }catch(error){
+    zoneDetections = [];
+  }finally{
+    zoneScanning = false;
+  }
+}
+
+function buildZones(w,h){
+  return [
+    { name:"centro", x:w*.18, y:h*.12, w:w*.64, h:h*.76 },
+    { name:"sinistra", x:0, y:h*.12, w:w*.56, h:h*.76 },
+    { name:"destra", x:w*.44, y:h*.12, w:w*.56, h:h*.76 },
+    { name:"basso", x:w*.12, y:h*.46, w:w*.76, h:h*.52 }
+  ].map(zone => ({
+    ...zone,
+    x:Math.max(0,Math.round(zone.x)),
+    y:Math.max(0,Math.round(zone.y)),
+    w:Math.min(w - Math.max(0,Math.round(zone.x)),Math.round(zone.w)),
+    h:Math.min(h - Math.max(0,Math.round(zone.y)),Math.round(zone.h))
+  })).filter(zone => zone.w > 80 && zone.h > 80);
+}
+
+async function detectZone(zone,sourceW,sourceH,threshold){
+  const target = Math.max(320,Math.min(544,analysisSize));
+  const scale = Math.min(1,target / Math.max(zone.w,zone.h));
+  const zw = Math.max(1,Math.round(zone.w * scale));
+  const zh = Math.max(1,Math.round(zone.h * scale));
+  zoneCanvas.width = zw;
+  zoneCanvas.height = zh;
+  zoneCtx.drawImage(source,zone.x,zone.y,zone.w,zone.h,0,0,zw,zh);
+  const raw = await model.detect(zoneCanvas,Math.max(4,Number(els.maxObjects.value)),threshold);
+  const sx = zone.w / zw;
+  const sy = zone.h / zh;
+  const ax = lastAnalysisWidth / sourceW;
+  const ay = lastAnalysisHeight / sourceH;
+  return raw
+    .filter(item => item.score >= threshold)
+    .map(item => ({
+      label:normalizeLabel(item.class),
+      score:Math.min(.99,item.score * .97),
+      source:`zona ${zone.name}`,
+      box:{
+        x:(zone.x + item.bbox[0] * sx) * ax,
+        y:(zone.y + item.bbox[1] * sy) * ay,
+        w:item.bbox[2] * sx * ax,
+        h:item.bbox[3] * sy * ay
+      }
+    }))
+    .filter(item => plausible(item,lastAnalysisWidth,lastAnalysisHeight));
 }
 
 async function runPreciseScan(force=false){
@@ -803,6 +894,7 @@ function barcodeToDetection(code){
 function updateFinalDetections(){
   const merged = [
     ...cocoDetections,
+    ...zoneDetections,
     ...preciseDetections,
     ...faceDetections,
     ...barcodeDetections
@@ -854,6 +946,7 @@ function suppressDuplicates(items){
 function sourceWeight(item){
   if(item.source === "barcode") return 1.4;
   if(item.source === "mediapipe") return .18;
+  if(String(item.source || "").startsWith("zona")) return .16;
   if(item.source === "face") return .12;
   return .1;
 }
@@ -1065,6 +1158,8 @@ function updateMetrics(){
   els.classLatency.textContent = classifying ? "..." : lastClassLatency ? `${lastClassLatency} ms` : "-";
   els.tickChip.textContent = detecting ? "tick: occupato" : `tick: ${TICK_MS} ms`;
   els.tickChip.className = detecting ? "chip busy" : "chip ok";
+  els.zoneChip.textContent = zoneScanning ? "zone: scan" : lastZoneLatency ? `zone: ${lastZoneLatency} ms` : "zone: pronte";
+  els.zoneChip.className = zoneScanning ? "chip busy" : "chip ok";
   if(preciseDetector || faceDetector){
     els.preciseChip.textContent = preciseDetecting ? "preciso: scan" : lastPreciseLatency ? `preciso: ${lastPreciseLatency} ms` : "preciso: pronto";
     els.preciseChip.className = preciseDetecting ? "chip busy" : "chip ok";
@@ -1078,10 +1173,12 @@ function updateMetrics(){
     lastMs: lastLatency,
     lastClassMs: lastClassLatency,
     lastPreciseMs: lastPreciseLatency,
+    lastZoneMs: lastZoneLatency,
     sourceType,
     analysisSize,
     classHints,
     sceneHints,
+    zoneObjects: zoneDetections,
     preciseObjects: preciseDetections,
     faces: faceDetections,
     barcodes: barcodeDetections,
@@ -1115,6 +1212,7 @@ function resetAll(){
   sourceType = "none";
   detections = [];
   cocoDetections = [];
+  zoneDetections = [];
   preciseDetections = [];
   faceDetections = [];
   barcodeDetections = [];
@@ -1127,8 +1225,10 @@ function resetAll(){
   lastLatency = 0;
   lastClassLatency = 0;
   lastPreciseLatency = 0;
+  lastZoneLatency = 0;
   lastClassifyAt = 0;
   lastPreciseAt = 0;
+  lastZoneAt = 0;
   lastBarcodeAt = 0;
   els.empty.classList.remove("hide");
   els.sourceLabel.textContent = "nessuna sorgente";
