@@ -70,6 +70,15 @@ input[type=file]{display:none}
 .obj em{display:block;color:#d9f6ff;font:12px var(--mono);font-style:normal;margin-top:5px;overflow-wrap:anywhere}
 .score{font:14px var(--mono);color:var(--green);white-space:nowrap}
 .warn{color:var(--amber)}
+.github-splash{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:#010409;color:#f0f6fc;opacity:1;transition:opacity .28s ease;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}
+.github-splash.hide{opacity:0;pointer-events:none}
+.github-splash.gone{display:none}
+.github-splash-card{display:grid;justify-items:center;gap:14px;transform:translateY(-2vh);animation:splashIn .38s ease both}
+.github-splash-logoWrap{width:102px;height:102px;border:1px solid #30363d;border-radius:50%;display:grid;place-items:center;background:linear-gradient(180deg,#161b22,#0d1117);box-shadow:0 0 0 8px rgba(48,54,61,.18),0 24px 70px rgba(0,0,0,.55)}
+.github-splash-logo{width:64px;height:64px;fill:#f0f6fc;filter:drop-shadow(0 0 18px rgba(240,246,252,.18))}
+.github-splash-name{font-size:clamp(34px,5vw,56px);font-weight:750;line-height:1;letter-spacing:0}
+.github-splash-line{width:128px;height:2px;border-radius:999px;background:linear-gradient(90deg,transparent,#3fb950,transparent);opacity:.9}
+@keyframes splashIn{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:translateY(-2vh) scale(1)}}
 @media(max-width:1080px){
   html,body{overflow:auto}
   .app{height:auto;min-height:100dvh}
@@ -98,6 +107,38 @@ input[type=file]{display:none}
 </style>
 </head>
 <body>
+<div class="github-splash" id="githubSplash" aria-hidden="true">
+  <div class="github-splash-card">
+    <div class="github-splash-logoWrap">
+      <svg class="github-splash-logo" viewBox="0 0 16 16" aria-hidden="true">
+        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82A7.6 7.6 0 0 1 8 3.86c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+      </svg>
+    </div>
+    <div class="github-splash-name">nico.carestiato</div>
+    <div class="github-splash-line"></div>
+  </div>
+</div>
+<script>
+(function(){
+  window.runGithubSplash = function(duration){
+    var splash = document.getElementById("githubSplash");
+    if(!splash) return;
+    clearTimeout(window.__githubSplashTimer);
+    clearTimeout(window.__githubSplashRemoveTimer);
+    splash.classList.remove("gone");
+    requestAnimationFrame(function(){
+      splash.classList.remove("hide");
+    });
+    window.__githubSplashTimer = setTimeout(function(){
+      splash.classList.add("hide");
+      window.__githubSplashRemoveTimer = setTimeout(function(){
+        splash.classList.add("gone");
+      },320);
+    },duration || 1000);
+  };
+  window.runGithubSplash(1000);
+})();
+</script>
 <main class="app">
   <div class="top">
     <div>
@@ -174,6 +215,7 @@ input[type=file]{display:none}
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.1/dist/mobilenet.min.js"></script>
 <script>
 const TICK_MS = 500;
+const SPLASH_MS = 1000;
 const CLASSIFY_EVERY_MS = 2200;
 const PRECISE_EVERY_MS = 900;
 const BARCODE_EVERY_MS = 1800;
@@ -248,7 +290,8 @@ const els = {
   skips: document.getElementById("skips"),
   classLatency: document.getElementById("classLatency"),
   classes: document.getElementById("classes"),
-  objects: document.getElementById("objects")
+  objects: document.getElementById("objects"),
+  githubSplash: document.getElementById("githubSplash")
 };
 
 let model = null;
@@ -315,7 +358,11 @@ function bind(){
   els.fileBtn.onclick = () => els.fileInput.click();
   els.fileInput.onchange = event => {
     const file = event.target.files[0];
-    if(file) loadImage(file);
+    els.fileInput.value = "";
+    if(file){
+      showGithubSplash();
+      loadImage(file);
+    }
   };
   els.liveBtn.onclick = () => {
     live = !live;
@@ -345,6 +392,10 @@ function bind(){
     if(source) drawFrame();
     else drawBlank();
   });
+}
+
+function showGithubSplash(duration=SPLASH_MS){
+  if(window.runGithubSplash) window.runGithubSplash(duration);
 }
 
 async function loadModel(){
