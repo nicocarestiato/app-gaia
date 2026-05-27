@@ -70,15 +70,6 @@ input[type=file]{display:none}
 .obj em{display:block;color:#d9f6ff;font:12px var(--mono);font-style:normal;margin-top:5px;overflow-wrap:anywhere}
 .score{font:14px var(--mono);color:var(--green);white-space:nowrap}
 .warn{color:var(--amber)}
-.github-splash{position:fixed;inset:0;z-index:9999;background:#010409;color:#f0f6fc;display:grid;place-items:center;opacity:1;transition:opacity .32s ease;font-family:"Mona Sans","Hubot Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}
-.github-splash.hide{opacity:0;pointer-events:none}
-.github-splash.gone{display:none}
-.github-card{display:grid;place-items:center;text-align:center;gap:12px;padding:28px}
-.github-mark{width:82px;height:82px;fill:#f0f6fc;filter:drop-shadow(0 0 24px rgba(240,246,252,.18))}
-.github-title{font-size:42px;font-weight:650;letter-spacing:-.03em;line-height:1}
-.github-subtitle{color:#8d96a0;font-size:14px;letter-spacing:.02em}
-.github-repo{display:inline-flex;align-items:center;gap:8px;border:1px solid #30363d;border-radius:999px;background:#0d1117;color:#c9d1d9;padding:7px 12px;font:12px var(--mono)}
-.github-dot{width:8px;height:8px;border-radius:50%;background:#2ea043;box-shadow:0 0 14px rgba(46,160,67,.75)}
 @media(max-width:1080px){
   html,body{overflow:auto}
   .app{height:auto;min-height:100dvh}
@@ -103,22 +94,10 @@ input[type=file]{display:none}
   .metrics{grid-template-columns:1fr}
   .obj{grid-template-columns:1fr}
   .score{justify-self:start}
-  .github-title{font-size:34px}
-  .github-mark{width:70px;height:70px}
 }
 </style>
 </head>
 <body>
-<div class="github-splash" id="githubSplash" aria-hidden="true">
-  <div class="github-card">
-    <svg class="github-mark" viewBox="0 0 16 16" aria-hidden="true">
-      <path d="M8 0C3.58 0 0 3.64 0 8.12c0 3.59 2.29 6.63 5.47 7.71.4.08.55-.18.55-.39 0-.19-.01-.83-.01-1.5-2.01.37-2.53-.5-2.69-.96-.09-.24-.48-.96-.82-1.15-.28-.15-.68-.52-.01-.53.63-.01 1.08.59 1.23.84.72 1.23 1.87.88 2.33.67.07-.53.28-.88.51-1.09-1.78-.2-3.64-.9-3.64-4.01 0-.89.31-1.61.82-2.18-.08-.2-.36-1.03.08-2.15 0 0 .67-.22 2.2.83.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.05 2.2-.83 2.2-.83.44 1.12.16 1.95.08 2.15.51.57.82 1.29.82 2.18 0 3.12-1.87 3.81-3.65 4.01.29.25.54.74.54 1.5 0 1.09-.01 1.96-.01 2.23 0 .21.15.47.55.39A8.02 8.02 0 0 0 16 8.12C16 3.64 12.42 0 8 0Z"/>
-    </svg>
-    <div class="github-title">nico.carestiato</div>
-    <div class="github-subtitle">GitHub repository service plus</div>
-    <div class="github-repo"><span class="github-dot"></span>nico.carestiato</div>
-  </div>
-</div>
 <main class="app">
   <div class="top">
     <div>
@@ -201,8 +180,6 @@ const BARCODE_EVERY_MS = 1800;
 const ZONE_SCAN_FAST_MS = 1800;
 const ZONE_SCAN_PRECISE_MS = 900;
 const CROP_CLASSIFY_LIMIT = 3;
-const SPLASH_LOAD_MS = 1150;
-const SPLASH_RESUME_MS = 900;
 const IT = {
   person:["persona","persone"],bicycle:["bicicletta","biciclette"],car:["auto","auto"],motorcycle:["moto","moto"],
   airplane:["aereo","aerei"],bus:["bus","bus"],train:["treno","treni"],truck:["camion","camion"],boat:["barca","barche"],
@@ -257,7 +234,6 @@ const els = {
   liveBtn: document.getElementById("liveBtn"),
   resetBtn: document.getElementById("resetBtn"),
   fileInput: document.getElementById("fileInput"),
-  githubSplash: document.getElementById("githubSplash"),
   threshold: document.getElementById("threshold"),
   thresholdValue: document.getElementById("thresholdValue"),
   qualitySeg: document.getElementById("qualitySeg"),
@@ -321,7 +297,6 @@ let lastClassifyAt = 0;
 let lastPreciseAt = 0;
 let lastZoneAt = 0;
 let lastBarcodeAt = 0;
-let lastSplashAt = 0;
 let classifying = false;
 let zoneScanning = false;
 let preciseDetecting = false;
@@ -330,7 +305,6 @@ window.__NV_STATE__ = {};
 boot();
 
 async function boot(){
-  showGithubSplash(SPLASH_LOAD_MS);
   bind();
   drawBlank();
   await loadModel();
@@ -371,28 +345,6 @@ function bind(){
     if(source) drawFrame();
     else drawBlank();
   });
-  document.addEventListener("visibilitychange",() => {
-    if(document.visibilityState === "visible") showGithubSplash(SPLASH_RESUME_MS);
-  });
-  window.addEventListener("pageshow",() => showGithubSplash(SPLASH_RESUME_MS));
-  window.addEventListener("focus",() => showGithubSplash(SPLASH_RESUME_MS));
-}
-
-function showGithubSplash(duration=SPLASH_RESUME_MS){
-  if(!els.githubSplash) return;
-  const now = performance.now();
-  if(now - lastSplashAt < 650) return;
-  lastSplashAt = now;
-  clearTimeout(showGithubSplash.timer);
-  clearTimeout(showGithubSplash.removeTimer);
-  els.githubSplash.classList.remove("gone");
-  requestAnimationFrame(() => els.githubSplash.classList.remove("hide"));
-  showGithubSplash.timer = setTimeout(() => {
-    els.githubSplash.classList.add("hide");
-    showGithubSplash.removeTimer = setTimeout(() => {
-      els.githubSplash.classList.add("gone");
-    },360);
-  },duration);
 }
 
 async function loadModel(){
